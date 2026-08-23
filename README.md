@@ -13,21 +13,6 @@ The covergroup lives inside the `monitor` class, sampled right after a transacti
 - `cp_data` — edge values (`0x0`, `0xFFFFFFFF`) as explicit bins, everything else falling into `mid_range`
 - `cx_write_region` — cross of write/read against address region
 - `cx_write_data` — cross of write/read against data value, with `ignore_bins` dropping the read side (data on a read is whatever came back from memory, not something worth crossing against)
-
-## Why Coverage Started at 60%, Not 100%
-
-First run: `cp_write`, `cp_addr_region`, and `cx_write_region` all hit 100%, because the address constraint spread ten random addresses across all four regions and the generator forces an even write/read split. `cp_data` and `cx_write_data` sat at 0%, because `data` was a plain `rand bit [31:0]` with no bias toward the edge values. Hitting an exact `32'h0` or `32'hFFFFFFFF` by chance, out of 2^32 possibilities, in ten tries, isn't realistic.
-
-The fix was a `dist` constraint on `data`:
-
-```systemverilog
-constraint c_data {
-  data dist {32'h0000_0000 := 5, 32'hFFFF_FFFF := 5, [1:32'hFFFF_FFFE] :/ 90};
-}
-```
-
-With a 5% weight on each edge value, a follow-up run landed both edges within the same ten writes, and coverage went to 100%. Worth flagging for anyone rerunning this: that result depends on the random seed. With `SVSEED default: 1` it's repeatable, but a 5% weight over only ten samples isn't a guarantee on every seed. A directed test that forces at least one write to `0x0` and one to `0xFFFFFFFF` would remove that uncertainty; the `dist` constraint just makes it likely.
-
 ## Coverage Techniques Left Out, and Why
 
 A few approaches got considered and dropped, not because they're wrong in general, but because they don't fit this DUT:
